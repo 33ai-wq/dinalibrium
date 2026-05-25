@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>$DLI Test Suite</title>
+<style>
+body{font-family:monospace;background:#0f1117;color:#e8e6f0;padding:2rem;line-height:1.7;}
+h1{color:#1dd5a0;}
+.subtitle{color:#7b7a8e;font-size:13px;margin-bottom:2rem;}
+.test{margin-bottom:6px;padding:8px 12px;border-radius:6px;font-size:13px;}
+.pass{background:rgba(29,213,160,0.08);border-left:3px solid #1dd5a0;color:#1dd5a0;}
+.fail{background:rgba(226,92,92,0.08);border-left:3px solid #e25c5c;color:#e25c5c;}
+.sec{color:#9b7fff;font-size:12px;text-transform:uppercase;letter-spacing:0.08em;margin:1.5rem 0 0.5rem;}
+.sum{margin-top:2rem;padding:1rem;border-radius:8px;font-size:15px;font-weight:600;}
+.ok{background:rgba(29,213,160,0.1);border:1px solid rgba(29,213,160,0.3);color:#1dd5a0;}
+.no{background:rgba(226,92,92,0.1);border:1px solid rgba(226,92,92,0.3);color:#e25c5c;}
+</style>
+</head>
+<body>
+<h1>Dinalibrium $DLI — Test Suite</h1>
+<div class="subtitle">DES Engine validation. Open in any browser to run.</div>
+<div id="out"></div>
+<div class="sum" id="sum"></div>
+<script>
+const W={mom:0.30,vol:0.25,vz:0.25,mr:0.20};
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function calcDES(mom,volp,vz,mr){
+  const s={mom:clamp(((mom-0.2)/2.8)*100,0,100),vol:volp*100,vz:clamp((1-vz/4)*100,0,100),mr:mr*100};
+  s.des=W.mom*s.mom+W.vol*s.vol+W.vz*s.vz+W.mr*s.mr;
+  return s;
+}
+function zone(d){
+  if(d<20)return'Extreme Oversold';if(d<42)return'Under-Equilibrium';
+  if(d<=58)return'Dinalibrium';if(d<=80)return'Over-Equilibrium';return'Extreme Overbought';
+}
+let ok=0,fail=0,log=[];
+function chk(desc,actual,expected,tol=0.5){
+  const pass=Math.abs(actual-expected)<=tol;
+  pass?ok++:fail++;
+  log.push({pass,desc,actual:+actual.toFixed(2),expected});
+}
+function eq(desc,a,b){const pass=a===b;pass?ok++:fail++;log.push({pass,desc,actual:a,expected:b});}
+
+log.push({sec:'1. DES bounds'});
+chk('DES min case near 0',calcDES(0.2,0,4,0).des,0,5);
+chk('DES max case near 100',calcDES(3,1,0,1).des,100,5);
+chk('Equilibrium preset in zone [42-58]',calcDES(1.1,0.5,0.8,0.55).des,50,9);
+
+log.push({sec:'2. Zone classification'});
+eq('DES=10 → Extreme Oversold',zone(10),'Extreme Oversold');
+eq('DES=30 → Under-Equilibrium',zone(30),'Under-Equilibrium');
+eq('DES=50 → Dinalibrium',zone(50),'Dinalibrium');
+eq('DES=42 → Dinalibrium',zone(42),'Dinalibrium');
+eq('DES=58 → Dinalibrium',zone(58),'Dinalibrium');
+eq('DES=70 → Over-Equilibrium',zone(70),'Over-Equilibrium');
+eq('DES=90 → Extreme Overbought',zone(90),'Extreme Overbought');
+
+log.push({sec:'3. Momentum score'});
+chk('mom=0.2 → momScore=0',calcDES(0.2,0.5,1,0.5).mom,0,1);
+chk('mom=3.0 → momScore=100',calcDES(3,0.5,1,0.5).mom,100,1);
+chk('mom=1.6 → momScore~50',calcDES(1.6,0.5,1,0.5).mom,50,5);
+
+log.push({sec:'4. Volume score'});
+chk('vol=0 → 0',calcDES(1,0,1,0.5).vol,0,1);
+chk('vol=1 → 100',calcDES(1,1,1,0.5).vol,100,1);
+
+log.push({sec:'5. Volatility score (inverse)'});
+chk('vz=0 → vzScore=100',calcDES(1,0.5,0,0.5).vz,100,1);
+chk('vz=4 → vzScore=0',calcDES(1,0.5,4,0.5).vz,0,1);
+
+log.push({sec:'6. Weights integrity'});
+chk('Weights sum=1.00',W.mom+W.vol+W.vz+W.mr,1,0.001);
+
+log.push({sec:'7. Preset scenarios'});
+chk('Overbought → DES>58',calcDES(2.5,0.9,0.3,0.2).des,75,15);
+chk('Oversold → DES<42',calcDES(0.35,0.15,3.2,0.1).des,15,15);
+
+const div=document.getElementById('out');
+log.forEach(t=>{
+  if(t.sec){const s=document.createElement('div');s.className='sec';s.textContent=t.sec;div.appendChild(s);return;}
+  const d=document.createElement('div');
+  d.className='test '+(t.pass?'pass':'fail');
+  d.textContent=(t.pass?'PASS':'FAIL')+' · '+t.desc+' (got '+t.actual+', expected '+t.expected+')';
+  div.appendChild(d);
+});
+const s=document.getElementById('sum');
+s.className='sum '+(fail===0?'ok':'no');
+s.textContent=(fail===0?'ALL TESTS PASSED ✓':'FAILED ✗')+' — '+ok+' passed, '+fail+' failed / '+(ok+fail)+' total';
+</script>
+</body>
+</html>
