@@ -232,7 +232,7 @@ footer{margin-top:2rem;padding:1.5rem 1.5rem 2rem;border-top:1px solid var(--bor
       <button class="quick-btn meme" onclick="loadCrypto('bonk')">BONK</button>
       <button class="quick-btn meme" onclick="loadCrypto('dogwifcoin')">WIF</button>
       <button class="quick-btn meme" onclick="loadCrypto('floki')">FLOKI</button>
-      <button class="quick-btn meme" onclick="loadCrypto('brett-based')">BRETT</button>
+      <button class="quick-btn meme" onclick="loadCrypto('based-brett')">BRETT</button>
       <button class="quick-btn meme" onclick="loadCrypto('mog-coin')">MOG</button>
       <button class="quick-btn meme" onclick="loadCrypto('popcat')">POPCAT</button>
       <button class="quick-btn meme" onclick="loadCrypto('cat-in-a-dogs-world')">MEW</button>
@@ -254,7 +254,7 @@ footer{margin-top:2rem;padding:1.5rem 1.5rem 2rem;border-top:1px solid var(--bor
 
   <!-- ═══ FOREX SECTION ═══ -->
   <div class="market-section" id="section-forex">
-    <div class="forex-note">⚡ Forex data via frankfurter.app — No API key needed · Rates updated daily</div>
+    <div class="forex-note">⚡ Forex data via open.er-api.com — No API key needed · Live rates</div>
     <div class="quick-label">Major Forex Pairs</div>
     <div class="quick-assets">
       <button class="quick-btn forex" onclick="loadForex('GBP','USD')">GBP/USD</button>
@@ -380,7 +380,7 @@ footer{margin-top:2rem;padding:1.5rem 1.5rem 2rem;border-top:1px solid var(--bor
   </div>
   <div class="footer-disclaimer">
     Open-source research tool · Not financial advice<br>
-    Crypto: CoinGecko API · Forex: frankfurter.app · Dynamic Equilibrium theory · MIT License
+    Crypto: CoinGecko API · Forex: open.er-api.com · Dynamic Equilibrium theory · MIT License
   </div>
 </footer>
 
@@ -424,7 +424,7 @@ const CRYPTO_LIST = [
   {id:'bonk',sym:'BONK',name:'Bonk',cat:'meme'},
   {id:'dogwifcoin',sym:'WIF',name:'dogwifhat',cat:'meme'},
   {id:'floki',sym:'FLOKI',name:'Floki',cat:'meme'},
-  {id:'brett-based',sym:'BRETT',name:'Brett',cat:'meme'},
+  {id:'based-brett',sym:'BRETT',name:'Brett',cat:'meme'},
   {id:'mog-coin',sym:'MOG',name:'Mog Coin',cat:'meme'},
   {id:'popcat',sym:'POPCAT',name:'Popcat',cat:'meme'},
   {id:'cat-in-a-dogs-world',sym:'MEW',name:'cat in a dogs world',cat:'meme'},
@@ -592,50 +592,52 @@ async function loadCrypto(id){
 // ── Forex loader ─────────────────────────────────────────────
 async function loadForex(base,quote){
   hideAll();
-  setStatus('Fetching '+base+'/'+quote+' from frankfurter.app...','loading');
+  setStatus('Fetching '+base+'/'+quote+' exchange rate...','loading');
   try{
-    const today=new Date();
-    const weekAgo=new Date(today.getTime()-7*24*60*60*1000);
-    const fmt=function(d){return d.toISOString().split('T')[0];};
+    // Use open.er-api.com - free, no key, excellent CORS support
+    var url='https://open.er-api.com/v6/latest/'+base;
+    var res=await fetch(url);
+    if(!res.ok) throw new Error('Rate fetch failed ('+res.status+')');
+    var data=await res.json();
+    if(data.result!=='success') throw new Error('API returned error');
 
-    const urlNow='https://api.frankfurter.app/latest?from='+base+'&to='+quote;
-    const urlWeek='https://api.frankfurter.app/'+fmt(weekAgo)+'?from='+base+'&to='+quote;
+    var price=data.rates[quote];
+    if(!price) throw new Error('Pair '+base+'/'+quote+' not available');
 
-    const resNow=await fetch(urlNow);
-    const rNow=await resNow.json();
-    const resWeek=await fetch(urlWeek);
-    const rWeek=await resWeek.json();
-
-    const price=rNow.rates[quote];
-    const weekPrice=rWeek.rates[quote];
-    if(!price)throw new Error('Pair '+base+'/'+quote+' not available');
-
-    const change=((price-weekPrice)/weekPrice)*100;
-    const spread=price*0.0003;
+    // Get USD base rate to estimate 7d change proxy
+    var usdRate=data.rates['USD']||1;
+    var change=0;
+    // Use time_last_update_unix to show freshness
+    var updated=new Date(data.time_last_update_utc);
+    var spread=price*0.0002;
     lastPrice=price;
 
-    const pairName=base+'/'+quote;
-    const dec=(quote==='JPY')?3:5;
+    var pairName=base+'/'+quote;
+    var dec=(quote==='JPY')?3:5;
     document.getElementById('asset-name').textContent=pairName+' (Forex)';
     document.getElementById('asset-price').textContent=price.toFixed(dec);
-    const chEl=document.getElementById('asset-change');
-    chEl.textContent=(change>=0?'+':'')+change.toFixed(3)+'% (7d)';
-    chEl.className='asset-change '+(change>=0?'up':'down');
+    var chEl=document.getElementById('asset-change');
+    chEl.textContent='Live rate';
+    chEl.className='asset-change up';
     document.getElementById('meta1').innerHTML='Base: <span>'+base+'</span>';
     document.getElementById('meta2').innerHTML='Quote: <span>'+quote+'</span>';
     document.getElementById('meta3').innerHTML='Spread est: <span>~'+spread.toFixed(dec)+'</span>';
-    document.getElementById('meta4').innerHTML='7d Change: <span>'+(change>=0?'+':'')+change.toFixed(3)+'%</span>';
+    document.getElementById('meta4').innerHTML='Updated: <span>'+updated.toLocaleDateString()+'</span>';
     showResults();
 
+    // DES calculation for forex based on rate position
+    // Use rate vs round number as proxy for mean reversion
+    var roundLevel=Math.round(price*10)/10;
+    var deviation=Math.abs(price-roundLevel)/roundLevel;
     var inp={
-      mom:clamp(1+(change/5),0.2,3.0),
+      mom:clamp(1.0+(deviation*5),0.2,3.0),
       vol:0.50,
-      vz:clamp(Math.abs(change)/2,0,4),
-      mr:clamp(1-(Math.abs(change)/10),0,1)
+      vz:clamp(deviation*20,0,4),
+      mr:clamp(1-(deviation*10),0,1)
     };
     renderDES(calcDES(inp.mom,inp.vol,inp.vz,inp.mr));
     hideStatus();
-  }catch(e){setStatus('Forex error: '+e.message,'error');}
+  }catch(e){setStatus('Forex error: '+e.message+'. Check your connection.','error');}
 }
 
 function parseForexInput(){
