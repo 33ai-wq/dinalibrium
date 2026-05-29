@@ -592,48 +592,46 @@ async function loadCrypto(id){
 // ── Forex loader ─────────────────────────────────────────────
 async function loadForex(base,quote){
   hideAll();
-  setStatus(`Fetching ${base}/${quote} from frankfurter.app...`,'loading');
+  setStatus('Fetching '+base+'/'+quote+' from frankfurter.app...','loading');
   try{
-    // Get today and 7 days ago
     const today=new Date();
-    const weekAgo=new Date(today-7*24*60*60*1000);
-    const fmt=d=>d.toISOString().split('T')[0];
+    const weekAgo=new Date(today.getTime()-7*24*60*60*1000);
+    const fmt=function(d){return d.toISOString().split('T')[0];};
 
-    const [rNow,rWeek]=await Promise.all([
-      fetch(`https://api.frankfurter.app/latest?from=${base}&to=${quote}`).then(r=>r.json()),
-      fetch(`https://api.frankfurter.app/${fmt(weekAgo)}?from=${base}&to=${quote}`).then(r=>r.json())
-    ]);
+    const urlNow='https://api.frankfurter.app/latest?from='+base+'&to='+quote;
+    const urlWeek='https://api.frankfurter.app/'+fmt(weekAgo)+'?from='+base+'&to='+quote;
+
+    const resNow=await fetch(urlNow);
+    const rNow=await resNow.json();
+    const resWeek=await fetch(urlWeek);
+    const rWeek=await resWeek.json();
 
     const price=rNow.rates[quote];
     const weekPrice=rWeek.rates[quote];
-    if(!price)throw new Error(`Pair ${base}/${quote} not available`);
+    if(!price)throw new Error('Pair '+base+'/'+quote+' not available');
 
     const change=((price-weekPrice)/weekPrice)*100;
     const spread=price*0.0003;
-    const high=price*(1+0.005);
-    const low=price*(1-0.005);
     lastPrice=price;
 
     const pairName=base+'/'+quote;
+    const dec=(quote==='JPY')?3:5;
     document.getElementById('asset-name').textContent=pairName+' (Forex)';
-    const dec=quote==='JPY'?4:5;
     document.getElementById('asset-price').textContent=price.toFixed(dec);
     const chEl=document.getElementById('asset-change');
     chEl.textContent=(change>=0?'+':'')+change.toFixed(3)+'% (7d)';
     chEl.className='asset-change '+(change>=0?'up':'down');
     document.getElementById('meta1').innerHTML='Base: <span>'+base+'</span>';
     document.getElementById('meta2').innerHTML='Quote: <span>'+quote+'</span>';
-    document.getElementById('meta3').innerHTML='Spread: <span>~'+spread.toFixed(dec)+'</span>';
+    document.getElementById('meta3').innerHTML='Spread est: <span>~'+spread.toFixed(dec)+'</span>';
     document.getElementById('meta4').innerHTML='7d Change: <span>'+(change>=0?'+':'')+change.toFixed(3)+'%</span>';
     showResults();
 
-    // DES for forex - use change and position in estimated range
-    const rangeEst=price*0.01;
-    const inp={
+    var inp={
       mom:clamp(1+(change/5),0.2,3.0),
-      vol:0.5,
+      vol:0.50,
       vz:clamp(Math.abs(change)/2,0,4),
-      mr:clamp(1-Math.abs(change)/10,0,1)
+      mr:clamp(1-(Math.abs(change)/10),0,1)
     };
     renderDES(calcDES(inp.mom,inp.vol,inp.vz,inp.mr));
     hideStatus();
