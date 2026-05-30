@@ -141,6 +141,28 @@ main{padding:1.5rem;max-width:960px;margin:0 auto;width:100%;}
 /* Forex note */
 .forex-note{background:rgba(74,158,255,0.06);border:1px solid rgba(74,158,255,0.15);border-radius:var(--radius-sm);padding:8px 12px;font-size:11px;color:var(--blue);margin-bottom:1rem;}
 
+
+/* Timeframe selector */
+.tf-row{display:flex;align-items:center;gap:8px;margin-bottom:1rem;flex-wrap:wrap;}
+.tf-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;}
+.tf-btn{padding:4px 12px;border-radius:20px;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-size:12px;font-weight:500;cursor:pointer;transition:all 0.2s;}
+.tf-btn.active{background:var(--purple);color:#fff;border-color:var(--purple);}
+.tf-btn:hover:not(.active){border-color:var(--purple);color:var(--purple);}
+
+/* Premium gate */
+.premium-gate{background:linear-gradient(135deg,rgba(155,127,255,0.12),rgba(29,213,160,0.08));border:1px solid rgba(155,127,255,0.3);border-radius:var(--radius);padding:1.25rem;margin-bottom:1rem;text-align:center;}
+.premium-gate .pg-icon{font-size:28px;margin-bottom:8px;}
+.premium-gate .pg-title{font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px;}
+.premium-gate .pg-sub{font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6;}
+.premium-gate .pg-req{font-size:12px;color:var(--purple);font-weight:500;margin-bottom:14px;}
+.btn-connect{background:linear-gradient(135deg,#9b7fff,#1dd5a0);color:#fff;font-size:13px;font-weight:700;padding:10px 24px;border-radius:var(--radius-sm);border:none;cursor:pointer;transition:opacity 0.2s;margin-bottom:8px;display:block;width:100%;max-width:280px;margin-left:auto;margin-right:auto;}
+.btn-connect:hover{opacity:0.88;}
+.wallet-status{display:none;padding:10px 14px;border-radius:var(--radius-sm);font-size:13px;margin-top:8px;}
+.wallet-status.connected-ok{background:rgba(29,213,160,0.1);border:1px solid rgba(29,213,160,0.3);color:var(--teal);}
+.wallet-status.connected-low{background:rgba(245,166,35,0.1);border:1px solid rgba(245,166,35,0.3);color:var(--amber);}
+.wallet-status.error{background:rgba(226,92,92,0.1);border:1px solid rgba(226,92,92,0.2);color:var(--red);}
+.premium-badge{display:inline-block;background:linear-gradient(135deg,#9b7fff,#1dd5a0);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;letter-spacing:0.06em;margin-left:6px;vertical-align:middle;}
+
 /* Footer */
 footer{margin-top:2rem;padding:1.5rem 1.5rem 2rem;border-top:1px solid var(--border);}
 .footer-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:1.25rem;}
@@ -186,7 +208,7 @@ footer{margin-top:2rem;padding:1.5rem 1.5rem 2rem;border-top:1px solid var(--bor
   <div class="market-tabs">
     <button class="tab-btn active" onclick="switchMarket('crypto')">🪙 Crypto</button>
     <button class="tab-btn" onclick="switchMarket('meme')">🐸 Meme Coins</button>
-    <button class="tab-btn" onclick="switchMarket('forex')">💱 Forex</button>
+    <button class="tab-btn" onclick="switchMarket('forex')">💱 Forex <span class="premium-badge">PRO</span></button>
   </div>
 
   <!-- STATUS BAR -->
@@ -274,6 +296,29 @@ footer{margin-top:2rem;padding:1.5rem 1.5rem 2rem;border-top:1px solid var(--bor
           autocomplete="off">
         <button class="btn btn-primary" onclick="parseForexInput()">Analyze</button>
       </div>
+    </div>
+  </div>
+
+
+  <!-- Timeframe selector -->
+  <div class="tf-row" id="tf-row" style="display:none;">
+    <span class="tf-label">Timeframe:</span>
+    <button class="tf-btn" onclick="setTF('H1')">H1</button>
+    <button class="tf-btn active" onclick="setTF('H4')">H4</button>
+    <button class="tf-btn" onclick="setTF('1D')">1D</button>
+    <span style="font-size:11px;color:var(--muted);margin-left:4px;">affects SL/TP</span>
+  </div>
+
+  <!-- Premium gate for Forex -->
+  <div class="premium-gate" id="premium-gate" style="display:none;">
+    <div class="pg-icon">🔐</div>
+    <div class="pg-title">Forex Analysis — Premium Feature <span class="premium-badge">$DINA</span></div>
+    <div class="pg-sub">Connect your Solana wallet to verify $DINA balance.<br>Full Forex access requires holding <strong>10,000 $DINA</strong>.</div>
+    <div class="pg-req">CA: 9QjGcP8LHtdAh1wkazpx1E3ELnZC78iVS5nJuLHkpump</div>
+    <button class="btn-connect" onclick="connectWallet()">🔗 Connect Phantom Wallet</button>
+    <div class="wallet-status" id="wallet-status"></div>
+    <div style="font-size:11px;color:var(--muted);margin-top:8px;">
+      Don't have $DINA? <a href="https://pump.fun/coin/9QjGcP8LHtdAh1wkazpx1E3ELnZC78iVS5nJuLHkpump" target="_blank" style="color:var(--teal);">Buy on pump.fun ↗</a>
     </div>
   </div>
 
@@ -482,12 +527,14 @@ function getSignal(des,scores){
 }
 function calcLevels(price,signal,scores){
   if(!price||price<=0)return null;
-  const volFactor=Math.max(0.5,Math.min(3.0,scores.vz/50));
-  const baseSL=0.03*volFactor,baseTP=baseSL*2.5;
-  let entry=price,sl,tp;
-  if(signal.type.includes('buy')){sl=price*(1-baseSL);tp=price*(1+baseTP);}
-  else if(signal.type.includes('sell')){sl=price*(1+baseSL);tp=price*(1-baseTP);}
-  else{sl=price*(1-baseSL*0.5);tp=price*(1+baseTP*0.5);}
+  var tf = TF_CONFIG[currentTF] || TF_CONFIG['H4'];
+  var volAdj = Math.max(0.7, Math.min(1.8, 1+(scores.vz-50)/100));
+  var slDist = tf.slMult * volAdj;
+  var tpDist = tf.tpMult * volAdj;
+  var entry=price,sl,tp;
+  if(signal.type.includes('buy')){sl=price*(1-slDist);tp=price*(1+tpDist);}
+  else if(signal.type.includes('sell')){sl=price*(1+slDist);tp=price*(1-tpDist);}
+  else{sl=price*(1-slDist*0.5);tp=price*(1+tpDist*0.5);}
   return{entry,sl,tp,slPct:((sl-entry)/entry*100).toFixed(2),tpPct:((tp-entry)/entry*100).toFixed(2),rr:(Math.abs(tp-entry)/Math.abs(sl-entry)).toFixed(1)};
 }
 
@@ -506,6 +553,8 @@ function renderDES(s){
   document.getElementById('mini-needle').setAttribute('transform',`rotate(${(s.des/100)*180-90} 50 50)`);
   document.getElementById('zone-cursor').style.left=s.des+'%';
   ['des-panel','panel-forces','panel-chart'].forEach(id=>document.getElementById(id).classList.add('show'));
+  document.getElementById('tf-row').style.display='flex';
+  lastDES=s;
   document.getElementById('force-bars').innerHTML=[
     {name:'Momentum',val:s.mom,color:'#4a9eff'},
     {name:'Volume Pressure',val:s.vol,color:'#1dd5a0'},
@@ -648,15 +697,27 @@ function parseForexInput(){
 
 // ── Market tabs ──────────────────────────────────────────────
 function switchMarket(market){
-  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-  document.querySelectorAll('.market-section').forEach(s=>s.classList.remove('active'));
-  document.querySelector(`[onclick="switchMarket('${market}')"]`).classList.add('active');
-  document.getElementById('section-'+market).classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});
+  document.querySelectorAll('.market-section').forEach(function(s){s.classList.remove('active');});
+  document.querySelector('[onclick="switchMarket(\''+market+'\')"]').classList.add('active');
   hideAll();hideStatus();hideSuggestions();
-  // Auto-load default
-  if(market==='crypto')loadCrypto('bitcoin');
-  else if(market==='meme')loadCrypto('dogecoin');
-  else if(market==='forex')loadForex('GBP','USD');
+  document.getElementById('premium-gate').style.display='none';
+
+  if(market==='forex'){
+    if(!isPremium){
+      // Show premium gate instead of forex section
+      document.getElementById('section-forex').classList.add('active');
+      document.getElementById('premium-gate').style.display='block';
+      document.getElementById('tf-row').style.display='none';
+    } else {
+      document.getElementById('section-forex').classList.add('active');
+      loadForex('GBP','USD');
+    }
+  } else {
+    document.getElementById('section-'+market).classList.add('active');
+    if(market==='crypto')loadCrypto('bitcoin');
+    else if(market==='meme')loadCrypto('dogecoin');
+  }
 }
 
 // ── Autocomplete suggestions ─────────────────────────────────
@@ -685,6 +746,110 @@ function fmtBig(n){if(n>=1e12)return(n/1e12).toFixed(2)+'T';if(n>=1e9)return(n/1
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000);}
 function copyCA(){navigator.clipboard.writeText(CA).then(()=>toast('CA copied!'));}
 function copyWallet(){navigator.clipboard.writeText(WALLET).then(()=>toast('Wallet copied!'));}
+
+
+// ── Timeframe system ────────────────────────────────────────
+var currentTF = 'H4';
+var TF_CONFIG = {
+  H1:  {slMult:0.008, tpMult:0.020, label:'H1 (Scalp)'},
+  H4:  {slMult:0.015, tpMult:0.0375,label:'H4 (Swing)'},
+  '1D':{slMult:0.030, tpMult:0.075, label:'1D (Position)'}
+};
+
+function setTF(tf){
+  currentTF = tf;
+  document.querySelectorAll('.tf-btn').forEach(function(b){
+    b.classList.toggle('active', b.textContent === tf);
+  });
+  // Re-render if we have a price
+  if(lastPrice && lastDES){
+    renderDES(lastDES);
+  }
+}
+
+var lastDES = null;
+
+// ── Wallet & Premium system ──────────────────────────────────
+var DINA_CA = '9QjGcP8LHtdAh1wkazpx1E3ELnZC78iVS5nJuLHkpump';
+var DINA_MINIMUM = 10000;
+var SOLANA_RPC = 'https://api.mainnet-beta.solana.com';
+var isPremium = false;
+var connectedWallet = null;
+
+async function connectWallet(){
+  var statusEl = document.getElementById('wallet-status');
+  statusEl.style.display = 'block';
+  statusEl.className = 'wallet-status';
+  statusEl.textContent = 'Connecting to Phantom...';
+
+  try{
+    // Check if Phantom is installed
+    var phantom = window.solana || window.phantom?.solana;
+    if(!phantom || !phantom.isPhantom){
+      statusEl.className = 'wallet-status error';
+      statusEl.innerHTML = 'Phantom wallet not found. <a href="https://phantom.app" target="_blank" style="color:var(--teal);">Install Phantom ↗</a>';
+      return;
+    }
+
+    // Connect
+    var resp = await phantom.connect();
+    connectedWallet = resp.publicKey.toString();
+    statusEl.textContent = 'Wallet connected. Checking $DINA balance...';
+
+    // Check $DINA balance via Solana RPC
+    var balance = await getDINABalance(connectedWallet);
+    statusEl.textContent = '';
+
+    if(balance >= DINA_MINIMUM){
+      isPremium = true;
+      statusEl.className = 'wallet-status connected-ok';
+      statusEl.innerHTML = '✓ Premium unlocked! Balance: '+balance.toLocaleString()+' $DINA';
+      // Hide gate, show forex
+      document.getElementById('premium-gate').style.display = 'none';
+      document.getElementById('section-forex').classList.add('active');
+      setTimeout(function(){loadForex('GBP','USD');}, 300);
+    } else {
+      statusEl.className = 'wallet-status connected-low';
+      statusEl.innerHTML = '⚠ Balance: '+balance.toLocaleString()+' $DINA<br>Need '+DINA_MINIMUM.toLocaleString()+' $DINA for premium access.<br><a href="https://pump.fun/coin/'+DINA_CA+'" target="_blank" style="color:var(--teal);">Buy more $DINA ↗</a>';
+    }
+  } catch(e){
+    statusEl.className = 'wallet-status error';
+    if(e.code === 4001){
+      statusEl.textContent = 'Connection rejected by user.';
+    } else {
+      statusEl.textContent = 'Error: '+e.message;
+    }
+  }
+}
+
+async function getDINABalance(walletAddress){
+  try{
+    // Get all token accounts for this wallet
+    var body = JSON.stringify({
+      jsonrpc:'2.0', id:1,
+      method:'getTokenAccountsByOwner',
+      params:[
+        walletAddress,
+        {mint: DINA_CA},
+        {encoding:'jsonParsed'}
+      ]
+    });
+    var res = await fetch(SOLANA_RPC, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: body
+    });
+    var data = await res.json();
+    if(data.result && data.result.value && data.result.value.length > 0){
+      var tokenAmount = data.result.value[0].account.data.parsed.info.tokenAmount;
+      return parseFloat(tokenAmount.uiAmount) || 0;
+    }
+    return 0;
+  } catch(e){
+    console.log('Balance check error:', e);
+    return 0;
+  }
+}
 
 // ── Boot ─────────────────────────────────────────────────────
 window.addEventListener('load',()=>loadCrypto('bitcoin'));
